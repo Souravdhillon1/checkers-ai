@@ -144,6 +144,7 @@ class CheckersGame:
     def valid_move(self,player_color):
         valid=[]
         valid_capture=[]
+        safe_moves=[]
         for (row,col),color in self.board_state.items():
             if(player_color=="black"):
                 single_moves=[
@@ -164,7 +165,11 @@ class CheckersGame:
             if color==player_color:
                 for move in single_moves:
                     if self.moves.is_valid_move((row,col),move,player_color,self.board_state):
-                        valid.append(((row,col),move))
+                        if self.is_piece_protected(move, player_color):
+                            safe_moves.append(((row, col), move))
+                        else:
+
+                            valid.append(((row,col),move))
                 for move in double_moves:
                     if self.moves.is_valid_capture((row,col),move,player_color,self.board_state):
                         captured_peice=self.get_captured_move(((row,col),move))
@@ -174,7 +179,7 @@ class CheckersGame:
                         valid_capture.append(((row,col),move))
 
 
-        return valid_capture if valid_capture else valid
+        return valid_capture if valid_capture else (safe_moves if safe_moves else valid)
     def minmax(self,depth,is_maximizing,alpha,beta):
         if depth==0 or self.moves.check_winner("black",self.board_state) or self.moves.check_winner("red",self.board_state):
             return self.evaluate_board(),None
@@ -195,7 +200,7 @@ class CheckersGame:
                     max_val=eval
                     best_move=move
                 elif eval == max_val:  # If two moves have the same score, randomize
-                    if random.random() < 0.5:
+                    if self.is_piece_protected(move[1], "black"):
                         best_move = move
                 alpha=max(alpha,eval)
                 if beta<=alpha:
@@ -213,7 +218,7 @@ class CheckersGame:
                     min_val=eval
                     best_move=move
                 elif eval == min_val:  # If two moves have the same score, randomize
-                    if random.random() < 0.5:
+                    if not self.is_piece_protected(move[1], "red"):  # Avoid aggressive moves for the opponent
                         best_move = move
                 beta=min(beta,eval)
                 if beta<=alpha:
@@ -235,6 +240,10 @@ class CheckersGame:
                 elif col == 0 or col == 7:  # Edge defense
                     score += 1
 
+                # **Defensive Factor: Check if the piece is protected**
+                if not self.is_piece_protected((row, col), "black"):
+                    score -= 2  # Penalize exposed pieces
+
                 computer_score += score
 
             elif color == "red":
@@ -247,9 +256,27 @@ class CheckersGame:
                 elif col == 0 or col == 7:  # Edge defense
                     score += 1
 
+                if not self.is_piece_protected((row, col), "red"):
+                    score -= 2  # Penalize exposed pieces
+
                 player_score += score
 
         return computer_score - player_score  # Higher is better for AI
+
+    def is_piece_protected(self, position, player_color):
+        row, col = position
+        allies = []
+
+        if player_color == "black":
+            allies = [(row - 1, col - 1), (row - 1, col + 1)]  # Backward defense
+        else:
+            allies = [(row + 1, col - 1), (row + 1, col + 1)]
+
+        for ally in allies:
+            if ally in self.board_state and self.board_state[ally] == player_color:
+                return True  # The piece is protected
+
+        return False
 
     def get_captured_move(self,move):
         start,end=move
